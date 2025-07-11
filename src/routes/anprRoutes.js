@@ -2,22 +2,17 @@ import express from "express";
 import multer from "multer";
 import fetch from "node-fetch";
 import fs from "fs";
-import dotenv from "dotenv";
-import FormData from "form-data"; // ✅ using the classic stable FormData package
-
-dotenv.config();
+import FormData from "form-data";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
 router.post("/anpr", upload.single("image"), async (req, res) => {
   const filePath = req.file.path;
-  const fileName = req.file.originalname;
-
   try {
     const form = new FormData();
     form.append("upload", fs.createReadStream(filePath));
-    form.append("regions", "in"); // Optional: Improve accuracy for India
+    form.append("regions", "in");
 
     const response = await fetch(
       "https://api.platerecognizer.com/v1/plate-reader/",
@@ -25,23 +20,22 @@ router.post("/anpr", upload.single("image"), async (req, res) => {
         method: "POST",
         headers: {
           Authorization: `Token ${process.env.PLATE_RECOGNIZER_TOKEN}`,
-          ...form.getHeaders(), // ✅ VERY IMPORTANT
+          ...form.getHeaders(),
         },
         body: form,
       }
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("❌ Plate API Error:", error);
-      return res.status(500).json({ error: "Plate API error", details: error });
+      const errorText = await response.text();
+      console.error("Plate API error:", errorText);
+      return res
+        .status(500)
+        .json({ error: "Plate API error", details: errorText });
     }
 
     const data = await response.json();
-    console.log("📦 API Response:", JSON.stringify(data, null, 2));
-
-    const plate = data?.results?.[0]?.plate?.toUpperCase() || "UNKNOWN";
-
+    const plate = data.results?.[0]?.plate?.toUpperCase() ?? "UNKNOWN";
     const userInfo = {
       name: "Demo User",
       phone: "+91 9000000000",
@@ -52,8 +46,8 @@ router.post("/anpr", upload.single("image"), async (req, res) => {
 
     res.json({ licensePlate: plate, userInfo });
   } catch (err) {
-    console.error("ANPR Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("ANPR error:", err);
+    res.status(500).json({ error: "Internal server error" });
   } finally {
     fs.unlink(filePath, () => {});
   }
